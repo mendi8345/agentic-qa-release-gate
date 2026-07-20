@@ -1,0 +1,24 @@
+@host = http://localhost:5000
+
+### Health
+GET {{host}}/health
+
+### Create order
+POST {{host}}/orders
+Content-Type: application/json
+
+{
+  "customerName": "Rivka",
+  "amount": 125.50
+}
+
+### Replace ORDER_ID with the id from create response
+GET {{host}}/orders/ORDER_ID
+
+### Current baseline incorrectly allows Created -> Shipped
+PATCH {{host}}/orders/ORDER_ID/status
+Content-Type: application/json
+
+{
+  "status": "Shipped"
+}

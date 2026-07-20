@@ -1,0 +1,60 @@
+using Microsoft.VisualStudio.TestTools.UnitTesting;
+using AgenticQaLab.Api.Models;
+using AgenticQaLab.Api.Services;
+
+namespace AgenticQaLab.Tests;
+
+[TestClass]
+public sealed class OrderServiceTests
+{
+    [TestMethod]
+    public void Create_WithValidInput_CreatesOrderInCreatedStatus()
+    {
+        var service = new OrderService();
+
+        var order = service.Create("Rivka", 125.50m);
+
+        Assert.AreEqual("Rivka", order.CustomerName);
+        Assert.AreEqual(125.50m, order.Amount);
+        Assert.AreEqual(OrderStatus.Created, order.Status);
+        Assert.AreNotEqual(Guid.Empty, order.Id);
+    }
+
+    [TestMethod]
+    public void Create_WithBlankCustomerName_ThrowsArgumentException()
+    {
+        var service = new OrderService();
+
+        Assert.ThrowsException<ArgumentException>(() => service.Create("  ", 20m));
+    }
+
+    [TestMethod]
+    public void Create_WithNonPositiveAmount_ThrowsArgumentOutOfRangeException()
+    {
+        var service = new OrderService();
+
+        Assert.ThrowsException<ArgumentOutOfRangeException>(() => service.Create("Rivka", 0m));
+    }
+
+    [TestMethod]
+    public void Get_WithUnknownId_ReturnsNull()
+    {
+        var service = new OrderService();
+
+        var result = service.Get(Guid.NewGuid());
+
+        Assert.IsNull(result);
+    }
+
+    [TestMethod]
+    public void UpdateStatus_WithExistingOrder_ChangesStatus()
+    {
+        var service = new OrderService();
+        var order = service.Create("Rivka", 50m);
+
+        var updated = service.UpdateStatus(order.Id, OrderStatus.Paid);
+
+        Assert.IsNotNull(updated);
+        Assert.AreEqual(OrderStatus.Paid, updated.Status);
+    }
+}
