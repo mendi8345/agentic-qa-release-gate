@@ -43,13 +43,20 @@ app.MapPatch("/orders/{id:guid}/status", (
         return Results.BadRequest(new { error = "Unknown order status." });
     }
 
-    var order = service.UpdateStatus(id, newStatus);
-    if (order is null)
+    try
     {
-        return Results.NotFound();
-    }
+        var order = service.UpdateStatus(id, newStatus);
+        if (order is null)
+        {
+            return Results.NotFound();
+        }
 
-    return Results.Ok(order);
+        return Results.Ok(order);
+    }
+    catch (InvalidOperationException ex)
+    {
+        return Results.BadRequest(new { error = ex.Message });
+    }
 });
 
 app.Run();
