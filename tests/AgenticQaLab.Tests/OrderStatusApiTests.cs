@@ -48,6 +48,26 @@ public sealed class OrderStatusApiTests
     }
 
     [TestMethod]
+    public async Task CreateOrder_WithCustomerNameLongerThan100Characters_Returns400()
+    {
+        var response = await _client.PostAsJsonAsync("/orders",
+            new { customerName = new string('a', 101), amount = 99.99m });
+
+        Assert.AreEqual(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
+    [TestMethod]
+    public async Task CreateOrder_WithPadded100CharacterCustomerName_Returns201()
+    {
+        var customerName = new string('a', 100);
+
+        var response = await _client.PostAsJsonAsync("/orders",
+            new { customerName = $"  {customerName}  ", amount = 99.99m });
+
+        Assert.AreEqual(HttpStatusCode.Created, response.StatusCode);
+    }
+
+    [TestMethod]
     public async Task PatchStatus_UnknownStatusString_Returns400()
     {
         var orderId = await CreateOrderAsync();

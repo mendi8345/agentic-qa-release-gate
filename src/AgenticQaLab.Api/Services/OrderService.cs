@@ -14,9 +14,16 @@ public sealed class OrderService
 
     public Order Create(string customerName, decimal amount)
     {
-        if (string.IsNullOrWhiteSpace(customerName))
+        var normalizedCustomerName = customerName.Trim();
+
+        if (string.IsNullOrWhiteSpace(normalizedCustomerName))
         {
             throw new ArgumentException("Customer name is required.", nameof(customerName));
+        }
+
+        if (normalizedCustomerName.Length > 100)
+        {
+            throw new ArgumentException("Customer name must not exceed 100 characters.", nameof(customerName));
         }
 
         if (amount <= 0)
@@ -27,7 +34,7 @@ public sealed class OrderService
         var order = new Order
         {
             Id = Guid.NewGuid(),
-            CustomerName = customerName.Trim(),
+            CustomerName = normalizedCustomerName,
             Amount = amount,
             Status = OrderStatus.Created,
             CreatedAt = DateTimeOffset.UtcNow
