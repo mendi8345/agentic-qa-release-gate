@@ -47,7 +47,7 @@ public sealed class OrderServiceTests
     }
 
     [TestMethod]
-    public void UpdateStatus_WithExistingOrder_ChangesStatus()
+    public void UpdateStatus_CreatedToPaid_Succeeds()
     {
         var service = new OrderService();
         var order = service.Create("Rivka", 50m);
@@ -56,5 +56,82 @@ public sealed class OrderServiceTests
 
         Assert.IsNotNull(updated);
         Assert.AreEqual(OrderStatus.Paid, updated.Status);
+    }
+
+    [TestMethod]
+    public void UpdateStatus_PaidToShipped_Succeeds()
+    {
+        var service = new OrderService();
+        var order = service.Create("Rivka", 50m);
+        service.UpdateStatus(order.Id, OrderStatus.Paid);
+
+        var updated = service.UpdateStatus(order.Id, OrderStatus.Shipped);
+
+        Assert.IsNotNull(updated);
+        Assert.AreEqual(OrderStatus.Shipped, updated.Status);
+    }
+
+    [TestMethod]
+    public void UpdateStatus_CreatedToShipped_ThrowsInvalidOperationException()
+    {
+        var service = new OrderService();
+        var order = service.Create("Rivka", 50m);
+
+        Assert.ThrowsException<InvalidOperationException>(
+            () => service.UpdateStatus(order.Id, OrderStatus.Shipped));
+    }
+
+    [TestMethod]
+    public void UpdateStatus_CreatedToCreated_ThrowsInvalidOperationException()
+    {
+        var service = new OrderService();
+        var order = service.Create("Rivka", 50m);
+
+        Assert.ThrowsException<InvalidOperationException>(
+            () => service.UpdateStatus(order.Id, OrderStatus.Created));
+    }
+
+    [TestMethod]
+    public void UpdateStatus_PaidToCreated_ThrowsInvalidOperationException()
+    {
+        var service = new OrderService();
+        var order = service.Create("Rivka", 50m);
+        service.UpdateStatus(order.Id, OrderStatus.Paid);
+
+        Assert.ThrowsException<InvalidOperationException>(
+            () => service.UpdateStatus(order.Id, OrderStatus.Created));
+    }
+
+    [TestMethod]
+    public void UpdateStatus_PaidToPaid_ThrowsInvalidOperationException()
+    {
+        var service = new OrderService();
+        var order = service.Create("Rivka", 50m);
+        service.UpdateStatus(order.Id, OrderStatus.Paid);
+
+        Assert.ThrowsException<InvalidOperationException>(
+            () => service.UpdateStatus(order.Id, OrderStatus.Paid));
+    }
+
+    [TestMethod]
+    public void UpdateStatus_ShippedToAnyStatus_ThrowsInvalidOperationException()
+    {
+        var service = new OrderService();
+        var order = service.Create("Rivka", 50m);
+        service.UpdateStatus(order.Id, OrderStatus.Paid);
+        service.UpdateStatus(order.Id, OrderStatus.Shipped);
+
+        Assert.ThrowsException<InvalidOperationException>(
+            () => service.UpdateStatus(order.Id, OrderStatus.Paid));
+    }
+
+    [TestMethod]
+    public void UpdateStatus_WithUnknownId_ReturnsNull()
+    {
+        var service = new OrderService();
+
+        var result = service.UpdateStatus(Guid.NewGuid(), OrderStatus.Paid);
+
+        Assert.IsNull(result);
     }
 }

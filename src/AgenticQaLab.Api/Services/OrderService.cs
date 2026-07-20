@@ -4,6 +4,12 @@ namespace AgenticQaLab.Api.Services;
 
 public sealed class OrderService
 {
+    private static readonly Dictionary<OrderStatus, OrderStatus> AllowedTransitions = new()
+    {
+        [OrderStatus.Created] = OrderStatus.Paid,
+        [OrderStatus.Paid] = OrderStatus.Shipped,
+    };
+
     private readonly Dictionary<Guid, Order> _orders = new();
 
     public Order Create(string customerName, decimal amount)
@@ -36,13 +42,17 @@ public sealed class OrderService
         return _orders.GetValueOrDefault(id);
     }
 
-    // Intentional baseline behavior for the agent exercise:
-    // any recognized status is currently accepted.
     public Order? UpdateStatus(Guid id, OrderStatus newStatus)
     {
         if (!_orders.TryGetValue(id, out var order))
         {
             return null;
+        }
+
+        if (!AllowedTransitions.TryGetValue(order.Status, out var allowed) || allowed != newStatus)
+        {
+            throw new InvalidOperationException(
+                $"Transition from '{order.Status}' to '{newStatus}' is not allowed.");
         }
 
         order.Status = newStatus;
