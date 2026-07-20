@@ -29,6 +29,36 @@ public sealed class OrderServiceTests
     }
 
     [TestMethod]
+    public void Create_WithCustomerNameOfExactly100Characters_CreatesOrder()
+    {
+        var service = new OrderService();
+        var customerName = new string('a', 100);
+
+        var order = service.Create(customerName, 20m);
+
+        Assert.AreEqual(customerName, order.CustomerName);
+    }
+
+    [TestMethod]
+    public void Create_WithCustomerNameLongerThan100Characters_ThrowsArgumentException()
+    {
+        var service = new OrderService();
+
+        Assert.ThrowsException<ArgumentException>(() => service.Create(new string('a', 101), 20m));
+    }
+
+    [TestMethod]
+    public void Create_WithPadded100CharacterCustomerName_TrimsBeforeValidatingAndCreatingOrder()
+    {
+        var service = new OrderService();
+        var customerName = new string('a', 100);
+
+        var order = service.Create($"  {customerName}  ", 20m);
+
+        Assert.AreEqual(customerName, order.CustomerName);
+    }
+
+    [TestMethod]
     public void Create_WithNonPositiveAmount_ThrowsArgumentOutOfRangeException()
     {
         var service = new OrderService();
