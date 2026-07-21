@@ -23,15 +23,19 @@ jobs:
             const command = (approvalComment?.body ?? '').trim();
             const author = (approvalComment?.user?.login ?? '').toLowerCase();
             const isPullRequest = Boolean(issue?.pull_request);
+            const approveCommand = '/quality-map approve';
+            const retryCommand = '/quality-map retry-implementation';
+            const isRetry = command === retryCommand;
 
             core.info(`Issue #${issueNumber}`);
             core.info(`Comment author: ${author}`);
             core.info(`Normalized command: ${JSON.stringify(command)}`);
             core.info(`Issue state: ${issue?.state}`);
             core.info(`Is pull request comment: ${isPullRequest}`);
+            core.info(`Is implementation retry: ${isRetry}`);
 
-            if (command !== '/quality-map approve') {
-              core.info('Ignoring comment because it is not the Quality Map approval command.');
+            if (command !== approveCommand && command !== retryCommand) {
+              core.info('Ignoring comment because it is not a Quality Map implementation command.');
               return;
             }
 
@@ -48,12 +52,12 @@ jobs:
             };
 
             if (isPullRequest) {
-              core.info('Approval rejected because the comment belongs to a pull request.');
+              core.info('Implementation command rejected because the comment belongs to a pull request.');
               return;
             }
 
             if (author !== 'mendi8345') {
-              core.info('Approval rejected because it was not written by the allowed user.');
+              core.info('Implementation command rejected because it was not written by the allowed user.');
               return;
             }
 
@@ -61,8 +65,8 @@ jobs:
               await postComment([
                 '## Quality Map — Implementation not started',
                 '',
-                'The approval command was received, but this issue is not open.',
-                'Reopen the issue and approve again only if implementation is still required.'
+                'The implementation command was received, but this issue is not open.',
+                'Reopen the issue and try again only if implementation is still required.'
               ].join('\n'));
               return;
             }
@@ -100,7 +104,7 @@ jobs:
               await postComment([
                 '## Quality Map — Implementation not started',
                 '',
-                'No complete Codex Quality Map analysis was found before this approval.',
+                'No complete Codex Quality Map analysis was found before this command.',
                 'Run `/quality-map analyze`, review the result, and approve again.'
               ].join('\n'));
               return;
@@ -131,7 +135,7 @@ jobs:
                 '',
                 `The latest analysis does not authorize implementation: ${analysis.html_url}`,
                 '',
-                'Its recommendation must be `READY FOR IMPLEMENTATION PLAN` before approval can start an implementation task.'
+                'Its recommendation must be `READY FOR IMPLEMENTATION PLAN` before implementation can start.'
               ].join('\n'));
               return;
             }
@@ -166,22 +170,41 @@ jobs:
                 '',
                 `The latest approved analysis has map status **${freshness}**: ${analysis.html_url}`,
                 '',
-                'Refresh or re-run the Quality Map analysis before approving implementation.'
+                'Refresh or re-run the Quality Map analysis before starting implementation.'
               ].join('\n'));
               return;
             }
 
-            const marker = `<!-- quality-map-implementation-request analysis-comment-id:${analysis.id} -->`;
-            const duplicateRequest = comments.find((comment) =>
-              (comment.body ?? '').includes(marker));
+            const markerPrefix = `<!-- quality-map-implementation-request analysis-comment-id:${analysis.id}`;
+            const priorRequest = comments
+              .filter((comment) => comment.id < approvalComment.id)
+              .find((comment) => (comment.body ?? '').includes(markerPrefix));
 
-            if (duplicateRequest) {
-              core.info(`Implementation was already requested for analysis comment ${analysis.id}: ${duplicateRequest.html_url}`);
+            if (priorRequest && !isRetry) {
+              await postComment([
+                '## Quality Map — Implementation already requested',
+                '',
+                `An implementation task was already requested for the latest analysis: ${priorRequest.html_url}`,
+                '',
+                'Use `/quality-map retry-implementation` only when that task ended without creating a pull request.'
+              ].join('\n'));
+              return;
+            }
+
+            if (!priorRequest && isRetry) {
+              await postComment([
+                '## Quality Map — Retry not started',
+                '',
+                'No previous implementation request was found for the latest analysis.',
+                'Use `/quality-map approve` for the first implementation attempt.'
+              ].join('\n'));
               return;
             }
 
             const approvalUrl = approvalComment.html_url;
             const analysisUrl = analysis.html_url;
+            const attemptType = isRetry ? 'retry' : 'initial';
+            const marker = `<!-- quality-map-implementation-request analysis-comment-id:${analysis.id} approval-comment-id:${approvalComment.id} attempt:${attemptType} -->`;
 
             const implementationRequest = [
               '@codex Implement this issue using the latest human-approved Quality Map analysis.',
@@ -189,13 +212,21 @@ jobs:
               `Human approval: ${approvalUrl}`,
               `Approved analysis: ${analysisUrl}`,
               `Approved map status: ${freshness}`,
+              `Implementation attempt: ${attemptType}`,
+              '',
+              'Authorization state:',
+              '- The linked human approval is the final authorization to implement this issue.',
+              '- It satisfies the plan-approval requirement in `AGENTS.md`.',
+              '- Briefly state your implementation plan in the task log, then continue immediately.',
+              '- Do not ask for or wait for another approval.',
+              '- You are authorized to edit files, run validation, commit changes, push the Codex task branch, and open one pull request.',
               '',
               'Before editing:',
               '- Read the issue body and the exact approved analysis linked above.',
               '- Read `.quality-map/active/map-manifest.json`.',
               '- Read `.quality-map/active/project-map.json`.',
               '- Read `.quality-map/active/evidence-index.json`.',
-              '- Read `AGENTS.md` and follow all repository instructions.',
+              '- Read `AGENTS.md` and follow all repository instructions, including the Quality Map approval exception.',
               '- Re-open and verify the current source and test files referenced by the approved analysis.',
               '',
               'Implementation gate:',
@@ -204,12 +235,13 @@ jobs:
               '- In that case, reply to this issue with `IMPLEMENTATION BLOCKED — REANALYSIS REQUIRED`, explain the contradiction or missing decision, and stop.',
               '',
               'Implementation requirements:',
-              '- Create a dedicated branch for this issue.',
+              '- Use the Codex task branch created for this task.',
               '- Implement only the approved behavior.',
               '- Add or update the service and API tests required by the analysis.',
               '- Preserve the adjacent behavior and regression coverage identified in the analysis.',
               '- Do not perform unrelated refactoring or add unrelated features.',
               '- Run the repository validation commands required by `AGENTS.md` and the existing CI workflow.',
+              '- Commit all implementation and test changes, then push the task branch.',
               '- If a required command cannot run, state exactly why and what remains unverified.',
               '',
               'Pull request requirements:',
@@ -218,6 +250,9 @@ jobs:
               '- Do not merge the pull request.',
               '- Include these PR sections: Summary, Files Changed, Tests, Validation Results, Risks and Assumptions, and Approved Quality Map Analysis.',
               `- Link the Approved Quality Map Analysis section to ${analysisUrl}.`,
+              '- Do not mark the task complete until the pull request exists and you can provide its URL.',
+              '- Do not finish with only an unpushed patch, local commit, or task summary.',
+              '- If pushing the branch or creating the pull request fails, reply to this issue with `IMPLEMENTATION DELIVERY FAILED`, include the exact error plus the branch name and commit SHA when available, and do not claim successful completion.',
               '',
               marker
             ].join('\n');
@@ -231,4 +266,4 @@ jobs:
               content: 'rocket'
             });
 
-            core.info(`Codex implementation request created from analysis comment ${analysis.id}.`);
+            core.info(`Codex implementation ${attemptType} requested from analysis comment ${analysis.id}.`);
