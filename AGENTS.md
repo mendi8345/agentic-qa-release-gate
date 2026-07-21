@@ -32,4 +32,4 @@ Before finishing, report:
 - Commands run and their results.
 - Remaining risks or assumptions.
 
-For a Quality Map approved implementation task, successful completion additionally requires a pushed task branch and an open pull request. If either delivery step fails, report the exact error, branch name, and commit SHA when available instead of claiming completion.
+For a Quality Map approved implementation task, successful completion requires an open pull request created through Codex's native GitHub publishing flow. Do not run `git commit`, `git push`, or `gh pr create` from the task shell when the workspace is not a normal Git checkout. After implementation and validation, publish the task changes using the Codex product's native pull-request action and return the PR URL. If native PR publishing is unavailable or fails, report `IMPLEMENTATION DELIVERY FAILED — NATIVE PUBLISHING UNAVAILABLE`, include the exact limitation or error and the Codex task URL, and do not claim successful completion.
