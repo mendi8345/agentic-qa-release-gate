@@ -12,12 +12,14 @@ jobs:
   request-analysis:
     if: >-
       github.event.issue.pull_request == null &&
-      github.event.comment.body == '/quality-map analyze'
+      github.event.comment.body == '/quality-map analyze' &&
+      github.event.comment.user.login == 'mendi8345'
     runs-on: ubuntu-latest
     steps:
       - name: Request read-only Quality Map analysis from Codex
         uses: actions/github-script@v7
         with:
+          github-token: ${{ secrets.QUALITY_MAP_USER_TOKEN }}
           script: |
             const issueNumber = context.issue.number;
             const body = [
