@@ -1,0 +1,17 @@
+{
+  "schemaVersion": "0.1.0",
+  "generatedFrom": {
+    "branch": "main",
+    "commit": "beb06b11d075b5880bf778b89cba6b45827c9071"
+  },
+  "generatedAt": "2026-07-21T00:00:00Z",
+  "generator": "manual-mvp-snapshot",
+  "artifacts": [
+    ".quality-map/active/project-map.json",
+    ".quality-map/active/evidence-index.json"
+  ],
+  "freshnessPolicy": {
+    "status": "fresh-at-generation",
+    "rule": "Treat the map as stale when the analyzed repository HEAD differs from generatedFrom.commit. Verify relevant source files before making claims."
+  }
+}
