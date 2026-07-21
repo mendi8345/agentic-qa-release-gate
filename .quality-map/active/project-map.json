@@ -1,0 +1,74 @@
+{
+  "schemaVersion": "0.1.0",
+  "project": {
+    "name": "Agentic QA Release Gate",
+    "purpose": "A small .NET 8 API used to practise CI, automated testing, pull-request workflows, and agent-driven development.",
+    "runtime": ".NET 8",
+    "architecture": "ASP.NET Core minimal API with an in-memory singleton service and MSTest test project"
+  },
+  "entryPoints": [
+    {
+      "id": "api-program",
+      "path": "src/AgenticQaLab.Api/Program.cs",
+      "responsibility": "Defines HTTP endpoints and maps service outcomes or exceptions to HTTP responses."
+    }
+  ],
+  "areas": [
+    {
+      "id": "order-creation",
+      "name": "Order creation",
+      "flow": [
+        "POST /orders",
+        "CreateOrderRequest",
+        "OrderService.Create",
+        "Order persisted in the in-memory order store"
+      ],
+      "files": [
+        "src/AgenticQaLab.Api/Program.cs",
+        "src/AgenticQaLab.Api/Requests/CreateOrderRequest.cs",
+        "src/AgenticQaLab.Api/Services/OrderService.cs",
+        "src/AgenticQaLab.Api/Models/Order.cs"
+      ],
+      "tests": [
+        "tests/AgenticQaLab.Tests/OrderServiceTests.cs",
+        "tests/AgenticQaLab.Tests/OrderStatusApiTests.cs"
+      ],
+      "knownRisks": [
+        "Input validation changes can alter HTTP 400 versus HTTP 201 behavior.",
+        "Normalization rules can change the persisted customer name.",
+        "The singleton in-memory store can leak state between API tests if test isolation is weak."
+      ]
+    },
+    {
+      "id": "order-status",
+      "name": "Order status transitions",
+      "flow": [
+        "PATCH /orders/{id}/status",
+        "UpdateOrderStatusRequest",
+        "OrderStatus parsing",
+        "OrderService.UpdateStatus",
+        "HTTP 200, 400, or 404 response"
+      ],
+      "files": [
+        "src/AgenticQaLab.Api/Program.cs",
+        "src/AgenticQaLab.Api/Requests/UpdateOrderStatusRequest.cs",
+        "src/AgenticQaLab.Api/Services/OrderService.cs",
+        "src/AgenticQaLab.Api/Models/OrderStatus.cs"
+      ],
+      "tests": [
+        "tests/AgenticQaLab.Tests/OrderServiceTests.cs",
+        "tests/AgenticQaLab.Tests/OrderStatusApiTests.cs"
+      ],
+      "knownRisks": [
+        "A transition-rule change can permit impossible business states.",
+        "Unknown status text and invalid recognized transitions must remain distinguishable in implementation while both return HTTP 400.",
+        "Missing orders must continue returning HTTP 404."
+      ]
+    }
+  ],
+  "qualityGates": [
+    "dotnet restore AgenticQaLab.sln",
+    "dotnet build AgenticQaLab.sln --no-restore",
+    "dotnet test AgenticQaLab.sln --no-build"
+  ]
+}
