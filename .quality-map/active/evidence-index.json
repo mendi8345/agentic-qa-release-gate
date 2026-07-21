@@ -1,0 +1,66 @@
+{
+  "schemaVersion": "0.1.0",
+  "evidence": [
+    {
+      "id": "ev-api-endpoints",
+      "path": "src/AgenticQaLab.Api/Program.cs",
+      "kind": "entry-point",
+      "supports": [
+        "HTTP endpoint behavior",
+        "HTTP status mapping",
+        "Request-to-service routing"
+      ]
+    },
+    {
+      "id": "ev-order-service",
+      "path": "src/AgenticQaLab.Api/Services/OrderService.cs",
+      "kind": "business-logic",
+      "supports": [
+        "Order creation validation",
+        "Customer-name normalization",
+        "Amount validation",
+        "Order status transition rules",
+        "In-memory persistence"
+      ]
+    },
+    {
+      "id": "ev-service-tests",
+      "path": "tests/AgenticQaLab.Tests/OrderServiceTests.cs",
+      "kind": "service-tests",
+      "supports": [
+        "Service validation boundaries",
+        "Order creation behavior",
+        "Status transition behavior",
+        "Missing-order behavior"
+      ]
+    },
+    {
+      "id": "ev-api-tests",
+      "path": "tests/AgenticQaLab.Tests/OrderStatusApiTests.cs",
+      "kind": "api-tests",
+      "supports": [
+        "HTTP status behavior",
+        "API-level order creation coverage",
+        "API-level status transition coverage"
+      ]
+    },
+    {
+      "id": "ev-agent-rules",
+      "path": "AGENTS.md",
+      "kind": "agent-instructions",
+      "supports": [
+        "Repository work rules",
+        "Required validation commands",
+        "Completion reporting expectations"
+      ]
+    },
+    {
+      "id": "ev-ci",
+      "path": ".github/workflows/ci.yml",
+      "kind": "quality-gate",
+      "supports": [
+        "Independent restore, build, and test validation"
+      ]
+    }
+  ]
+}
