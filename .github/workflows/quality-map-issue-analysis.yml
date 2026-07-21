@@ -20,44 +20,46 @@ jobs:
         with:
           script: |
             const issueNumber = context.issue.number;
-            const body = `@codex Perform a read-only Quality Map analysis for this issue.
-
-Before analyzing:
-- Read \`.quality-map/active/map-manifest.json\`.
-- Read \`.quality-map/active/project-map.json\`.
-- Read \`.quality-map/active/evidence-index.json\`.
-- Read \`AGENTS.md\`.
-- Compare the manifest commit with the current repository HEAD. If they differ, explicitly mark the map as potentially stale.
-- Verify relevant claims by opening the referenced source and test files. Do not trust the map blindly.
-
-Do not modify code, create commits, or create a pull request.
-
-Reply to this issue with exactly these sections:
-
-## Quality Map — Task Understanding
-- Restate the intended behavior and outcome.
-
-## Relevant Flow and Evidence
-- Identify the affected flow, likely entry points, source files, and existing tests.
-- Cite repository paths for every factual claim.
-
-## Risks and Possible Impact
-- List regressions, adjacent flows, compatibility concerns, and failure modes.
-
-## Required Test Coverage
-- List existing tests to preserve and new or changed tests likely required.
-
-## Facts, Assumptions, and Unknowns
-- Separate confirmed facts from assumptions and unresolved questions.
-
-## Confidence and Map Freshness
-- Give a confidence level with a short reason.
-- State whether the active map is fresh, stale, or unverified.
-
-## Recommendation
-- Return one of: READY FOR IMPLEMENTATION PLAN, NEEDS CLARIFICATION, or MAP REFRESH REQUIRED.
-
-Wait for human approval. Do not implement the issue.`;
+            const body = [
+              '@codex Perform a read-only Quality Map analysis for this issue.',
+              '',
+              'Before analyzing:',
+              '- Read `.quality-map/active/map-manifest.json`.',
+              '- Read `.quality-map/active/project-map.json`.',
+              '- Read `.quality-map/active/evidence-index.json`.',
+              '- Read `AGENTS.md`.',
+              '- Compare the manifest commit with the current repository HEAD. If they differ, explicitly mark the map as potentially stale.',
+              '- Verify relevant claims by opening the referenced source and test files. Do not trust the map blindly.',
+              '',
+              'Do not modify code, create commits, or create a pull request.',
+              '',
+              'Reply to this issue with exactly these sections:',
+              '',
+              '## Quality Map — Task Understanding',
+              '- Restate the intended behavior and outcome.',
+              '',
+              '## Relevant Flow and Evidence',
+              '- Identify the affected flow, likely entry points, source files, and existing tests.',
+              '- Cite repository paths for every factual claim.',
+              '',
+              '## Risks and Possible Impact',
+              '- List regressions, adjacent flows, compatibility concerns, and failure modes.',
+              '',
+              '## Required Test Coverage',
+              '- List existing tests to preserve and new or changed tests likely required.',
+              '',
+              '## Facts, Assumptions, and Unknowns',
+              '- Separate confirmed facts from assumptions and unresolved questions.',
+              '',
+              '## Confidence and Map Freshness',
+              '- Give a confidence level with a short reason.',
+              '- State whether the active map is fresh, stale, or unverified.',
+              '',
+              '## Recommendation',
+              '- Return one of: READY FOR IMPLEMENTATION PLAN, NEEDS CLARIFICATION, or MAP REFRESH REQUIRED.',
+              '',
+              'Wait for human approval. Do not implement the issue.'
+            ].join('\n');
 
             await github.rest.issues.createComment({
               owner: context.repo.owner,
