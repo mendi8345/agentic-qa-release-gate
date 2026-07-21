@@ -7,22 +7,23 @@ on:
 permissions:
   contents: read
   issues: write
+  pull-requests: write
 
 jobs:
   request-implementation:
     runs-on: ubuntu-latest
     steps:
-      - name: Validate approval and request Codex implementation
+      - name: Create or reuse implementation PR and request Codex
         uses: actions/github-script@v7
         with:
           github-token: ${{ secrets.QUALITY_MAP_USER_TOKEN }}
           script: |
             const issue = context.payload.issue;
-            const approvalComment = context.payload.comment;
+            const commandComment = context.payload.comment;
             const issueNumber = issue?.number;
-            const command = (approvalComment?.body ?? '').trim();
-            const author = (approvalComment?.user?.login ?? '').toLowerCase();
-            const isPullRequest = Boolean(issue?.pull_request);
+            const command = (commandComment?.body ?? '').trim();
+            const author = (commandComment?.user?.login ?? '').toLowerCase();
+            const isPullRequestComment = Boolean(issue?.pull_request);
             const approveCommand = '/quality-map approve';
             const retryCommand = '/quality-map retry-implementation';
             const isRetry = command === retryCommand;
@@ -31,7 +32,7 @@ jobs:
             core.info(`Comment author: ${author}`);
             core.info(`Normalized command: ${JSON.stringify(command)}`);
             core.info(`Issue state: ${issue?.state}`);
-            core.info(`Is pull request comment: ${isPullRequest}`);
+            core.info(`Is pull request comment: ${isPullRequestComment}`);
             core.info(`Is implementation retry: ${isRetry}`);
 
             if (command !== approveCommand && command !== retryCommand) {
@@ -42,7 +43,7 @@ jobs:
             const owner = context.repo.owner;
             const repo = context.repo.repo;
 
-            const postComment = async (body) => {
+            const postIssueComment = async (body) => {
               await github.rest.issues.createComment({
                 owner,
                 repo,
@@ -51,8 +52,13 @@ jobs:
               });
             };
 
-            if (isPullRequest) {
-              core.info('Implementation command rejected because the comment belongs to a pull request.');
+            const formatError = (error) => {
+              const status = error?.status ? `HTTP ${error.status}: ` : '';
+              return `${status}${error?.message ?? String(error)}`;
+            };
+
+            if (isPullRequestComment) {
+              core.info('Implementation command rejected because it belongs to a pull request.');
               return;
             }
 
@@ -62,7 +68,7 @@ jobs:
             }
 
             if (issue?.state !== 'open') {
-              await postComment([
+              await postIssueComment([
                 '## Quality Map — Implementation not started',
                 '',
                 'The implementation command was received, but this issue is not open.',
@@ -91,17 +97,17 @@ jobs:
               '## Recommendation'
             ];
 
-            const analysesBeforeApproval = comments
-              .filter((comment) => comment.id < approvalComment.id)
+            const analysesBeforeCommand = comments
+              .filter((comment) => comment.id < commandComment.id)
               .filter((comment) => comment.user?.login === 'chatgpt-codex-connector[bot]')
               .filter((comment) => requiredHeadings.every((heading) =>
                 (comment.body ?? '').includes(heading)))
               .sort((left, right) => right.id - left.id);
 
-            const analysis = analysesBeforeApproval[0];
+            const analysis = analysesBeforeCommand[0];
 
             if (!analysis) {
-              await postComment([
+              await postIssueComment([
                 '## Quality Map — Implementation not started',
                 '',
                 'No complete Codex Quality Map analysis was found before this command.',
@@ -130,7 +136,7 @@ jobs:
             ).toUpperCase();
 
             if (!recommendationSection.includes('READY FOR IMPLEMENTATION PLAN')) {
-              await postComment([
+              await postIssueComment([
                 '## Quality Map — Implementation not started',
                 '',
                 `The latest analysis does not authorize implementation: ${analysis.html_url}`,
@@ -165,7 +171,7 @@ jobs:
             ]);
 
             if (!allowedFreshness.has(freshness)) {
-              await postComment([
+              await postIssueComment([
                 '## Quality Map — Implementation not started',
                 '',
                 `The latest approved analysis has map status **${freshness}**: ${analysis.html_url}`,
@@ -175,94 +181,255 @@ jobs:
               return;
             }
 
-            const markerPrefix = `<!-- quality-map-implementation-request analysis-comment-id:${analysis.id}`;
-            const priorRequest = comments
-              .filter((comment) => comment.id < approvalComment.id)
-              .find((comment) => (comment.body ?? '').includes(markerPrefix));
+            const repository = await github.rest.repos.get({ owner, repo });
+            const defaultBranch = repository.data.default_branch;
+            const baseRef = await github.rest.git.getRef({
+              owner,
+              repo,
+              ref: `heads/${defaultBranch}`
+            });
+            const baseCommit = baseRef.data.object.sha;
+            const branchName = `quality-map/issue-${issueNumber}-analysis-${analysis.id}`;
+            const handoffPath = `.quality-map/requests/issue-${issueNumber}-analysis-${analysis.id}.json`;
 
-            if (priorRequest && !isRetry) {
-              await postComment([
-                '## Quality Map — Implementation already requested',
+            const matchingPulls = await github.paginate(
+              github.rest.pulls.list,
+              {
+                owner,
+                repo,
+                state: 'all',
+                head: `${owner}:${branchName}`,
+                per_page: 100
+              }
+            );
+
+            let pullRequest = matchingPulls
+              .sort((left, right) => right.number - left.number)[0];
+
+            if (pullRequest?.merged_at) {
+              await postIssueComment([
+                '## Quality Map — Implementation already delivered',
                 '',
-                `An implementation task was already requested for the latest analysis: ${priorRequest.html_url}`,
-                '',
-                'Use `/quality-map retry-implementation` only when that task ended without creating a pull request.'
+                `The implementation pull request for this analysis was already merged: ${pullRequest.html_url}`
               ].join('\n'));
               return;
             }
 
-            if (!priorRequest && isRetry) {
-              await postComment([
-                '## Quality Map — Retry not started',
+            if (pullRequest && pullRequest.state === 'closed') {
+              try {
+                const reopened = await github.rest.pulls.update({
+                  owner,
+                  repo,
+                  pull_number: pullRequest.number,
+                  state: 'open'
+                });
+                pullRequest = reopened.data;
+              } catch (error) {
+                await postIssueComment([
+                  '## Quality Map — Existing implementation PR is closed',
+                  '',
+                  `The workflow found ${pullRequest.html_url}, but could not reopen it.`,
+                  '',
+                  `Error: \`${formatError(error)}\``
+                ].join('\n'));
+                return;
+              }
+            }
+
+            let createdNow = false;
+
+            if (!pullRequest) {
+              try {
+                try {
+                  await github.rest.git.getRef({
+                    owner,
+                    repo,
+                    ref: `heads/${branchName}`
+                  });
+                  core.info(`Reusing existing branch ${branchName}.`);
+                } catch (error) {
+                  if (error.status !== 404) throw error;
+
+                  await github.rest.git.createRef({
+                    owner,
+                    repo,
+                    ref: `refs/heads/${branchName}`,
+                    sha: baseCommit
+                  });
+                  core.info(`Created branch ${branchName} at ${baseCommit}.`);
+                }
+
+                const handoff = {
+                  schemaVersion: 1,
+                  issueNumber,
+                  issueUrl: issue.html_url,
+                  issueTitle: issue.title,
+                  analysisCommentId: analysis.id,
+                  analysisUrl: analysis.html_url,
+                  approvalCommentId: commandComment.id,
+                  approvalUrl: commandComment.html_url,
+                  mapStatus: freshness,
+                  baseBranch: defaultBranch,
+                  baseCommit,
+                  implementationBranch: branchName,
+                  requestedBy: commandComment.user?.login,
+                  requestedAt: new Date().toISOString()
+                };
+
+                let existingHandoffSha;
+                try {
+                  const existingHandoff = await github.rest.repos.getContent({
+                    owner,
+                    repo,
+                    path: handoffPath,
+                    ref: branchName
+                  });
+
+                  if (!Array.isArray(existingHandoff.data)) {
+                    existingHandoffSha = existingHandoff.data.sha;
+                  }
+                } catch (error) {
+                  if (error.status !== 404) throw error;
+                }
+
+                await github.rest.repos.createOrUpdateFileContents({
+                  owner,
+                  repo,
+                  path: handoffPath,
+                  message: `Start approved implementation for issue #${issueNumber}`,
+                  content: Buffer.from(`${JSON.stringify(handoff, null, 2)}\n`).toString('base64'),
+                  branch: branchName,
+                  ...(existingHandoffSha ? { sha: existingHandoffSha } : {})
+                });
+
+                const prBody = [
+                  '## Quality Map implementation handoff',
+                  '',
+                  `Closes #${issueNumber}`,
+                  '',
+                  `- **Approved analysis:** ${analysis.html_url}`,
+                  `- **Human approval:** ${commandComment.html_url}`,
+                  `- **Map status:** ${freshness}`,
+                  `- **Implementation branch:** \`${branchName}\``,
+                  '',
+                  'This draft pull request was created before implementation so Codex has a real GitHub branch and PR context.',
+                  'The bootstrap handoff file must be removed before implementation is complete.',
+                  '',
+                  `<!-- quality-map-draft-pr analysis-comment-id:${analysis.id} issue-number:${issueNumber} -->`
+                ].join('\n');
+
+                const createdPullRequest = await github.rest.pulls.create({
+                  owner,
+                  repo,
+                  title: `[Quality Map] ${issue.title}`,
+                  head: branchName,
+                  base: defaultBranch,
+                  body: prBody,
+                  draft: true,
+                  maintainer_can_modify: true
+                });
+
+                pullRequest = createdPullRequest.data;
+                createdNow = true;
+              } catch (error) {
+                await postIssueComment([
+                  '## Quality Map — Draft PR creation failed',
+                  '',
+                  'The approved analysis passed all gates, but GitHub could not create the implementation branch or draft PR.',
+                  '',
+                  `Error: \`${formatError(error)}\``,
+                  '',
+                  'Required fine-grained token permissions:',
+                  '- Contents: Read and write',
+                  '- Pull requests: Read and write',
+                  '- Issues: Read and write'
+                ].join('\n'));
+                return;
+              }
+            } else if (!isRetry) {
+              await postIssueComment([
+                '## Quality Map — Implementation PR already exists',
                 '',
-                'No previous implementation request was found for the latest analysis.',
-                'Use `/quality-map approve` for the first implementation attempt.'
+                `The approved analysis already has an implementation pull request: ${pullRequest.html_url}`,
+                '',
+                'Use `/quality-map retry-implementation` only when Codex needs another implementation attempt in that existing PR.'
               ].join('\n'));
               return;
             }
 
-            const approvalUrl = approvalComment.html_url;
-            const analysisUrl = analysis.html_url;
-            const attemptType = isRetry ? 'retry' : 'initial';
-            const marker = `<!-- quality-map-implementation-request analysis-comment-id:${analysis.id} approval-comment-id:${approvalComment.id} attempt:${attemptType} -->`;
+            const attemptType = createdNow ? 'initial' : 'retry';
+            const taskMarker = `<!-- quality-map-pr-implementation analysis-comment-id:${analysis.id} command-comment-id:${commandComment.id} attempt:${attemptType} -->`;
 
             const implementationRequest = [
-              '@codex Implement this issue using the latest human-approved Quality Map analysis.',
+              '@codex Implement the linked issue in this existing draft pull request using the human-approved Quality Map analysis below.',
               '',
-              `Human approval: ${approvalUrl}`,
-              `Approved analysis: ${analysisUrl}`,
+              `Issue: ${issue.html_url}`,
+              `Human approval: ${commandComment.html_url}`,
+              `Approved analysis: ${analysis.html_url}`,
               `Approved map status: ${freshness}`,
               `Implementation attempt: ${attemptType}`,
               '',
               'Authorization state:',
-              '- The linked human approval is the final authorization to implement this issue.',
-              '- It satisfies the plan-approval requirement in `AGENTS.md`.',
-              '- Briefly state your implementation plan in the task log, then continue immediately.',
-              '- Do not ask for or wait for another approval.',
-              '- You are authorized to edit files, run validation, and publish one pull request through Codex native GitHub publishing.',
+              '- The linked human approval is the final authorization to implement.',
+              '- State a short plan, then continue immediately without waiting for another approval.',
               '',
-              'Before editing:',
-              '- Read the issue body and the exact approved analysis linked above.',
-              '- Read `.quality-map/active/map-manifest.json`.',
-              '- Read `.quality-map/active/project-map.json`.',
-              '- Read `.quality-map/active/evidence-index.json`.',
-              '- Read `AGENTS.md` and follow all repository instructions, including the Quality Map approval exception and native PR publishing rule.',
-              '- Re-open and verify the current source and test files referenced by the approved analysis.',
-              '',
-              'Implementation gate:',
-              '- Treat the approved analysis as the agreed scope, risk checklist, and required test coverage.',
-              '- If the current code materially contradicts the approved analysis, requirements are ambiguous, or implementation would require expanding the approved scope, do not edit code.',
-              '- In that case, reply to this issue with `IMPLEMENTATION BLOCKED — REANALYSIS REQUIRED`, explain the contradiction or missing decision, and stop.',
+              'Delivery contract:',
+              '- Work only in this existing pull request and its current branch.',
+              '- Do not create another branch or another pull request.',
+              '- Do not call `make_pr` and do not attempt `git push` from a workspace without a configured remote.',
+              '- Apply the implementation changes to this pull request through the GitHub PR integration available in PR context.',
+              '- Remove the bootstrap handoff file before completion:',
+              `  - \`${handoffPath}\``,
+              '- If this PR branch cannot be updated, comment here with `IMPLEMENTATION DELIVERY FAILED — PR BRANCH UPDATE UNAVAILABLE` and the exact limitation.',
               '',
               'Implementation requirements:',
-              '- Implement only the approved behavior in the Codex task workspace.',
+              '- Read the issue body and the complete approved analysis embedded below.',
+              '- Re-open and verify the current source and test files referenced by the analysis.',
+              '- Implement only the approved behavior.',
               '- Add or update the service and API tests required by the analysis.',
-              '- Preserve the adjacent behavior and regression coverage identified in the analysis.',
+              '- Preserve adjacent behavior and regression coverage identified by the analysis.',
               '- Do not perform unrelated refactoring or add unrelated features.',
-              '- Run the repository validation commands required by `AGENTS.md` and the existing CI workflow.',
-              '- If a required command cannot run, state exactly why and what remains unverified.',
+              '- Run the validation commands required by `AGENTS.md` and the existing CI workflow.',
+              '- Reply in this PR with files changed, tests added, validation results, and remaining risks.',
               '',
-              'Pull request publishing requirements:',
-              '- After implementation and validation, use Codex native GitHub pull-request publishing flow to publish the task changes.',
-              '- Do not run `git commit`, `git push`, or `gh pr create` from the task shell.',
-              '- Open exactly one pull request against the default branch.',
-              `- Link it to this issue with \`Closes #${issueNumber}\`.`,
-              '- Do not merge the pull request.',
-              '- Include these PR sections: Summary, Files Changed, Tests, Validation Results, Risks and Assumptions, and Approved Quality Map Analysis.',
-              `- Link the Approved Quality Map Analysis section to ${analysisUrl}.`,
-              '- Do not mark the task complete until the native publishing flow has created the pull request and you can provide its URL.',
-              '- If native PR publishing is unavailable or fails, reply to this issue with `IMPLEMENTATION DELIVERY FAILED — NATIVE PUBLISHING UNAVAILABLE`, include the exact limitation or error and the Codex task URL, and do not claim successful completion.',
+              '<details>',
+              '<summary>Approved Quality Map analysis</summary>',
               '',
-              marker
+              analysisBody,
+              '',
+              '</details>',
+              '',
+              taskMarker
             ].join('\n');
 
-            await postComment(implementationRequest);
+            await github.rest.issues.createComment({
+              owner,
+              repo,
+              issue_number: pullRequest.number,
+              body: implementationRequest
+            });
+
+            const issueMarker = `<!-- quality-map-implementation-pr analysis-comment-id:${analysis.id} pr-number:${pullRequest.number} branch:${branchName} -->`;
+            await postIssueComment([
+              createdNow
+                ? '## Quality Map — Draft implementation PR created'
+                : '## Quality Map — Implementation retry sent to existing PR',
+              '',
+              `Pull request: ${pullRequest.html_url}`,
+              `Branch: \`${branchName}\``,
+              '',
+              createdNow
+                ? 'Codex was requested inside the PR so it can update an existing GitHub branch rather than trying to publish a new PR from an Issue task.'
+                : 'Codex was requested again inside the same PR; no duplicate PR was created.',
+              '',
+              issueMarker
+            ].join('\n'));
 
             await github.rest.reactions.createForIssueComment({
               owner,
               repo,
-              comment_id: approvalComment.id,
+              comment_id: commandComment.id,
               content: 'rocket'
             });
 
-            core.info(`Codex implementation ${attemptType} requested from analysis comment ${analysis.id}.`);
+            core.info(`Codex ${attemptType} implementation requested in PR #${pullRequest.number}.`);
