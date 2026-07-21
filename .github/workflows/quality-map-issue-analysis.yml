@@ -10,18 +10,40 @@ permissions:
 
 jobs:
   request-analysis:
-    if: >-
-      github.event.issue.pull_request == null &&
-      github.event.comment.body == '/quality-map analyze' &&
-      github.event.comment.user.login == 'mendi8345'
     runs-on: ubuntu-latest
     steps:
-      - name: Request read-only Quality Map analysis from Codex
+      - name: Validate command and request read-only Quality Map analysis
         uses: actions/github-script@v7
         with:
           github-token: ${{ secrets.QUALITY_MAP_USER_TOKEN }}
           script: |
-            const issueNumber = context.issue.number;
+            const issue = context.payload.issue;
+            const comment = context.payload.comment;
+            const issueNumber = issue?.number;
+            const command = (comment?.body ?? '').trim();
+            const author = (comment?.user?.login ?? '').toLowerCase();
+            const isPullRequest = Boolean(issue?.pull_request);
+
+            core.info(`Issue #${issueNumber}`);
+            core.info(`Comment author: ${author}`);
+            core.info(`Normalized command: ${JSON.stringify(command)}`);
+            core.info(`Is pull request comment: ${isPullRequest}`);
+
+            if (isPullRequest) {
+              core.info('Ignoring comment because it belongs to a pull request.');
+              return;
+            }
+
+            if (author !== 'mendi8345') {
+              core.info('Ignoring comment because it was not written by the allowed user.');
+              return;
+            }
+
+            if (command !== '/quality-map analyze') {
+              core.info('Ignoring comment because it is not the Quality Map command.');
+              return;
+            }
+
             const body = [
               '@codex Perform a read-only Quality Map analysis for this issue.',
               '',
@@ -69,3 +91,5 @@ jobs:
               issue_number: issueNumber,
               body
             });
+
+            core.info('Quality Map analysis request comment created successfully.');
