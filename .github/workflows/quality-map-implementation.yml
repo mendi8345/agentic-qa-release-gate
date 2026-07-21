@@ -1,0 +1,234 @@
+name: Quality Map Approved Implementation
+
+on:
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  request-implementation:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate approval and request Codex implementation
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.QUALITY_MAP_USER_TOKEN }}
+          script: |
+            const issue = context.payload.issue;
+            const approvalComment = context.payload.comment;
+            const issueNumber = issue?.number;
+            const command = (approvalComment?.body ?? '').trim();
+            const author = (approvalComment?.user?.login ?? '').toLowerCase();
+            const isPullRequest = Boolean(issue?.pull_request);
+
+            core.info(`Issue #${issueNumber}`);
+            core.info(`Comment author: ${author}`);
+            core.info(`Normalized command: ${JSON.stringify(command)}`);
+            core.info(`Issue state: ${issue?.state}`);
+            core.info(`Is pull request comment: ${isPullRequest}`);
+
+            if (command !== '/quality-map approve') {
+              core.info('Ignoring comment because it is not the Quality Map approval command.');
+              return;
+            }
+
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+
+            const postComment = async (body) => {
+              await github.rest.issues.createComment({
+                owner,
+                repo,
+                issue_number: issueNumber,
+                body
+              });
+            };
+
+            if (isPullRequest) {
+              core.info('Approval rejected because the comment belongs to a pull request.');
+              return;
+            }
+
+            if (author !== 'mendi8345') {
+              core.info('Approval rejected because it was not written by the allowed user.');
+              return;
+            }
+
+            if (issue?.state !== 'open') {
+              await postComment([
+                '## Quality Map — Implementation not started',
+                '',
+                'The approval command was received, but this issue is not open.',
+                'Reopen the issue and approve again only if implementation is still required.'
+              ].join('\n'));
+              return;
+            }
+
+            const comments = await github.paginate(
+              github.rest.issues.listComments,
+              {
+                owner,
+                repo,
+                issue_number: issueNumber,
+                per_page: 100
+              }
+            );
+
+            const requiredHeadings = [
+              '## Quality Map — Task Understanding',
+              '## Relevant Flow and Evidence',
+              '## Risks and Possible Impact',
+              '## Required Test Coverage',
+              '## Facts, Assumptions, and Unknowns',
+              '## Confidence and Map Freshness',
+              '## Recommendation'
+            ];
+
+            const analysesBeforeApproval = comments
+              .filter((comment) => comment.id < approvalComment.id)
+              .filter((comment) => comment.user?.login === 'chatgpt-codex-connector[bot]')
+              .filter((comment) => requiredHeadings.every((heading) =>
+                (comment.body ?? '').includes(heading)))
+              .sort((left, right) => right.id - left.id);
+
+            const analysis = analysesBeforeApproval[0];
+
+            if (!analysis) {
+              await postComment([
+                '## Quality Map — Implementation not started',
+                '',
+                'No complete Codex Quality Map analysis was found before this approval.',
+                'Run `/quality-map analyze`, review the result, and approve again.'
+              ].join('\n'));
+              return;
+            }
+
+            const extractSection = (text, startHeading, endHeading) => {
+              const start = text.indexOf(startHeading);
+              if (start < 0) return '';
+
+              const contentStart = start + startHeading.length;
+              const end = endHeading
+                ? text.indexOf(endHeading, contentStart)
+                : -1;
+
+              return text.slice(contentStart, end >= 0 ? end : undefined).trim();
+            };
+
+            const analysisBody = analysis.body ?? '';
+            const recommendationSection = extractSection(
+              analysisBody,
+              '## Recommendation',
+              null
+            ).toUpperCase();
+
+            if (!recommendationSection.includes('READY FOR IMPLEMENTATION PLAN')) {
+              await postComment([
+                '## Quality Map — Implementation not started',
+                '',
+                `The latest analysis does not authorize implementation: ${analysis.html_url}`,
+                '',
+                'Its recommendation must be `READY FOR IMPLEMENTATION PLAN` before approval can start an implementation task.'
+              ].join('\n'));
+              return;
+            }
+
+            const freshnessSection = extractSection(
+              analysisBody,
+              '## Confidence and Map Freshness',
+              '## Recommendation'
+            ).toUpperCase();
+
+            let freshness = 'UNVERIFIED';
+            if (freshnessSection.includes('MAP REFRESH REQUIRED')) {
+              freshness = 'MAP REFRESH REQUIRED';
+            } else if (freshnessSection.includes('POTENTIALLY STALE')) {
+              freshness = 'POTENTIALLY STALE';
+            } else if (freshnessSection.includes('UNVERIFIED')) {
+              freshness = 'UNVERIFIED';
+            } else if (freshnessSection.includes('FRESH FOR THIS TASK')) {
+              freshness = 'FRESH FOR THIS TASK';
+            } else if (/\bFRESH\b/.test(freshnessSection)) {
+              freshness = 'FRESH';
+            }
+
+            const allowedFreshness = new Set([
+              'FRESH',
+              'FRESH FOR THIS TASK'
+            ]);
+
+            if (!allowedFreshness.has(freshness)) {
+              await postComment([
+                '## Quality Map — Implementation not started',
+                '',
+                `The latest approved analysis has map status **${freshness}**: ${analysis.html_url}`,
+                '',
+                'Refresh or re-run the Quality Map analysis before approving implementation.'
+              ].join('\n'));
+              return;
+            }
+
+            const marker = `<!-- quality-map-implementation-request analysis-comment-id:${analysis.id} -->`;
+            const duplicateRequest = comments.find((comment) =>
+              (comment.body ?? '').includes(marker));
+
+            if (duplicateRequest) {
+              core.info(`Implementation was already requested for analysis comment ${analysis.id}: ${duplicateRequest.html_url}`);
+              return;
+            }
+
+            const approvalUrl = approvalComment.html_url;
+            const analysisUrl = analysis.html_url;
+
+            const implementationRequest = [
+              '@codex Implement this issue using the latest human-approved Quality Map analysis.',
+              '',
+              `Human approval: ${approvalUrl}`,
+              `Approved analysis: ${analysisUrl}`,
+              `Approved map status: ${freshness}`,
+              '',
+              'Before editing:',
+              '- Read the issue body and the exact approved analysis linked above.',
+              '- Read `.quality-map/active/map-manifest.json`.',
+              '- Read `.quality-map/active/project-map.json`.',
+              '- Read `.quality-map/active/evidence-index.json`.',
+              '- Read `AGENTS.md` and follow all repository instructions.',
+              '- Re-open and verify the current source and test files referenced by the approved analysis.',
+              '',
+              'Implementation gate:',
+              '- Treat the approved analysis as the agreed scope, risk checklist, and required test coverage.',
+              '- If the current code materially contradicts the approved analysis, requirements are ambiguous, or implementation would require expanding the approved scope, do not edit code.',
+              '- In that case, reply to this issue with `IMPLEMENTATION BLOCKED — REANALYSIS REQUIRED`, explain the contradiction or missing decision, and stop.',
+              '',
+              'Implementation requirements:',
+              '- Create a dedicated branch for this issue.',
+              '- Implement only the approved behavior.',
+              '- Add or update the service and API tests required by the analysis.',
+              '- Preserve the adjacent behavior and regression coverage identified in the analysis.',
+              '- Do not perform unrelated refactoring or add unrelated features.',
+              '- Run the repository validation commands required by `AGENTS.md` and the existing CI workflow.',
+              '- If a required command cannot run, state exactly why and what remains unverified.',
+              '',
+              'Pull request requirements:',
+              '- Open exactly one pull request against the default branch.',
+              `- Link it to this issue with \`Closes #${issueNumber}\`.`,
+              '- Do not merge the pull request.',
+              '- Include these PR sections: Summary, Files Changed, Tests, Validation Results, Risks and Assumptions, and Approved Quality Map Analysis.',
+              `- Link the Approved Quality Map Analysis section to ${analysisUrl}.`,
+              '',
+              marker
+            ].join('\n');
+
+            await postComment(implementationRequest);
+
+            await github.rest.reactions.createForIssueComment({
+              owner,
+              repo,
+              comment_id: approvalComment.id,
+              content: 'rocket'
+            });
+
+            core.info(`Codex implementation request created from analysis comment ${analysis.id}.`);
