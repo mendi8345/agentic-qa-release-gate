@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Codex Cloud Environment maintenance script.
-# Configure this script in the Codex Environment "Maintenance script" field.
-# It runs when Codex resumes a cached container.
+# Canonical cached-environment maintenance implementation. The setup wrapper installs a
+# checksum-verified copy outside the checked-out branch, and the maintenance wrapper invokes it.
 
 set -euo pipefail
 
