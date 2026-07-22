@@ -1,11 +1,11 @@
 # Codex Environment Git delivery
 
-The canonical Git setup and maintenance logic lives in:
+The canonical setup and maintenance logic lives in:
 
 - `scripts/codex-environment-setup.sh`
 - `scripts/codex-environment-maintenance.sh`
 
-Do not duplicate those full files in Codex Environment settings. Use the short checksum-pinned wrappers below.
+Use the checksum-pinned wrappers below in Codex Environment settings.
 
 ## Required Environment configuration
 
@@ -21,11 +21,9 @@ Secret:
 QUALITY_MAP_GITHUB_TOKEN=<fine-grained GitHub PAT with repository Contents read/write>
 ```
 
-Agent internet access must allow GitHub delivery during the agent phase. Allow `github.com` and permit the HTTP methods required by Git smart HTTP, including POST.
+Agent internet access must allow `github.com` and the HTTP methods required by Git smart HTTP, including POST.
 
 ## Setup script field
-
-Paste this entire wrapper into the Codex Environment **Setup script** field:
 
 ```bash
 set -euo pipefail
@@ -35,12 +33,12 @@ MAINTENANCE_FILE="scripts/codex-environment-maintenance.sh"
 TRUSTED_MAINTENANCE="${HOME}/.codex/quality-map-maintenance.sh"
 
 printf '%s  %s\n' \
-  '8af4ecaa2ca34a68598479ce675d71b476b9aa8f0f4a632b4681bc64e42a0d70' \
+  '138fc3769860f66de22cdf8460e6928e6ac4882f30290ae31536929243e79141' \
   "${SETUP_FILE}" \
   | sha256sum --check
 
 printf '%s  %s\n' \
-  '4e26df5c4c0da5e5e8b7afbde5fc573da51952164808db11167852032847e6d2' \
+  'a2095ed5a91e442ce2eaa27d6661bca6e5d155f41e0c6998b201fb656b50c3a1' \
   "${MAINTENANCE_FILE}" \
   | sha256sum --check
 
@@ -48,17 +46,16 @@ install -D -m 700 "${MAINTENANCE_FILE}" "${TRUSTED_MAINTENANCE}"
 bash "${SETUP_FILE}"
 ```
 
-The setup script configures Git identity, the repository-scoped credential, and `origin`. It deliberately does not perform external network checks. A transient GitHub or proxy failure must not abort the task before Codex can report the exact delivery error.
+The setup script:
 
-Why the wrapper copies the maintenance file outside the repository:
+- installs the .NET 8 SDK when it is missing;
+- configures Git identity and `origin`;
+- clears repository-local connector-bot authentication that can override the PAT;
+- stores the repository-scoped PAT and verifies that Git selects `x-access-token`.
 
-- A fresh cached container is prepared from the default branch, where the approved scripts exist.
-- A later task may check out an older PR branch that does not contain those files.
-- The trusted copy remains in the cached container and cannot be replaced by changes in the task branch.
+The wrapper copies the reviewed maintenance script outside the repository so a cached task can safely use it even after checking out an older task branch.
 
 ## Maintenance script field
-
-Paste this entire wrapper into the Codex Environment **Maintenance script** field:
 
 ```bash
 set -euo pipefail
@@ -71,23 +68,24 @@ if [[ ! -f "${TRUSTED_MAINTENANCE}" ]]; then
 fi
 
 printf '%s  %s\n' \
-  '4e26df5c4c0da5e5e8b7afbde5fc573da51952164808db11167852032847e6d2' \
+  'a2095ed5a91e442ce2eaa27d6661bca6e5d155f41e0c6998b201fb656b50c3a1' \
   "${TRUSTED_MAINTENANCE}" \
   | sha256sum --check
 
 bash "${TRUSTED_MAINTENANCE}"
 ```
 
-The maintenance script only restores local Git configuration. Network authentication and push verification belong to the Codex implementation task, where failures can be reported with the exact command output.
+On every cached resume, maintenance runs after Codex checks out the task branch. It reinstalls missing .NET tooling and reapplies the PAT after removing any connector-bot credential or authorization header introduced by checkout.
 
 ## Activation
 
-After changing either Environment field:
+After these repository changes are merged:
 
-1. Save the Environment.
-2. The cache is invalidated automatically when the scripts change.
-3. Start the next Codex task only after the save completes.
+1. Replace both wrappers in Codex Environment settings.
+2. Save the Environment.
+3. Select **Reset cache** once.
+4. Retry the existing implementation task.
 
-The checksum wrappers fail only when the reviewed repository scripts are missing or have changed. Network delivery is verified later by Codex using `git ls-remote`, `git push`, and a local-versus-remote SHA comparison.
+Codex automatically invalidates cached state when scripts, environment variables, or secrets change. The explicit reset here ensures the trusted maintenance copy and .NET installation are rebuilt from the merged default branch before retrying the existing PR.
 
-Whenever either repository script is intentionally changed, review and merge that change first, recalculate its SHA-256 value, and update the corresponding wrapper value in Codex Environment settings.
+Network delivery is still verified by the implementation task using `git ls-remote`, `git push`, and a local-versus-remote SHA comparison.
