@@ -17,6 +17,20 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Verify Codex environment scripts
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          bash -n scripts/codex-environment-setup.sh
+          bash -n scripts/codex-environment-maintenance.sh
+
+          setup_sha="$(sha256sum scripts/codex-environment-setup.sh | awk '{print $1}')"
+          maintenance_sha="$(sha256sum scripts/codex-environment-maintenance.sh | awk '{print $1}')"
+
+          test "$(grep -Foc "'${setup_sha}'" docs/codex-environment-delivery.md)" -eq 1
+          test "$(grep -Foc "'${maintenance_sha}'" docs/codex-environment-delivery.md)" -eq 2
+
       - name: Set up .NET 8
         uses: actions/setup-dotnet@v4
         with:
