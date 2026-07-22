@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Codex Cloud Environment setup script.
-# Configure this script in the Codex Environment "Setup script" field.
+# Canonical setup implementation. Invoke it through the checksum-pinned wrapper documented in
+# `docs/codex-environment-delivery.md`; do not duplicate this full file in environment settings.
 # Required environment variable: QUALITY_MAP_REPOSITORY=OWNER/REPOSITORY
 # Required secret: QUALITY_MAP_GITHUB_TOKEN=<fine-grained GitHub PAT>
 # Do not enable shell tracing (`set -x`), because it may expose credentials.
