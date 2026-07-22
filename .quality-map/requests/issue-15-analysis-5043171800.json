@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "issueNumber": 15,
+  "issueUrl": "https://github.com/mendi8345/agentic-qa-release-gate/issues/15",
+  "issueTitle": "Include service name in the health response",
+  "analysisCommentId": 5043171800,
+  "analysisUrl": "https://github.com/mendi8345/agentic-qa-release-gate/issues/15#issuecomment-5043171800",
+  "approvalCommentId": 5043277078,
+  "approvalUrl": "https://github.com/mendi8345/agentic-qa-release-gate/issues/15#issuecomment-5043277078",
+  "mapStatus": "FRESH FOR THIS TASK",
+  "mapCoverage": "MAP COVERAGE GAP",
+  "baseBranch": "main",
+  "baseCommit": "7f32644da7e003dd77066a3e6af1d9b4443b045f",
+  "implementationBranch": "quality-map/issue-15-analysis-5043171800",
+  "requestedBy": "mendi8345",
+  "requestedAt": "2026-07-22T07:49:59.998Z"
+}
