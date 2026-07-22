@@ -150,20 +150,20 @@ jobs:
               analysisBody,
               '## Confidence and Map Freshness',
               '## Recommendation'
-            ).toUpperCase();
+            );
 
-            let freshness = 'UNVERIFIED';
-            if (freshnessSection.includes('MAP REFRESH REQUIRED')) {
-              freshness = 'MAP REFRESH REQUIRED';
-            } else if (freshnessSection.includes('POTENTIALLY STALE')) {
-              freshness = 'POTENTIALLY STALE';
-            } else if (freshnessSection.includes('UNVERIFIED')) {
-              freshness = 'UNVERIFIED';
-            } else if (freshnessSection.includes('FRESH FOR THIS TASK')) {
-              freshness = 'FRESH FOR THIS TASK';
-            } else if (/\bFRESH\b/.test(freshnessSection)) {
-              freshness = 'FRESH';
-            }
+            const freshnessMatch = freshnessSection.match(
+              /^Map freshness:\s*(FRESH FOR THIS TASK|FRESH|POTENTIALLY STALE|MAP REFRESH REQUIRED|UNVERIFIED)\s*$/mi
+            );
+            const freshness = freshnessMatch?.[1]?.toUpperCase() ?? 'UNVERIFIED';
+
+            const coverageMatch = freshnessSection.match(
+              /^Map coverage:\s*(COMPLETE|MAP COVERAGE GAP)\s*$/mi
+            );
+            const mapCoverage = coverageMatch?.[1]?.toUpperCase() ?? 'UNVERIFIED';
+
+            core.info(`Parsed map freshness: ${freshness}`);
+            core.info(`Parsed map coverage: ${mapCoverage}`);
 
             const allowedFreshness = new Set([
               'FRESH',
@@ -176,7 +176,8 @@ jobs:
                 '',
                 `The latest approved analysis has map status **${freshness}**: ${analysis.html_url}`,
                 '',
-                'Refresh or re-run the Quality Map analysis before starting implementation.'
+                'A machine-readable `Map freshness:` line with `FRESH` or `FRESH FOR THIS TASK` is required before implementation can start.',
+                'Re-run `/quality-map analyze` after correcting or refreshing the relevant evidence.'
               ].join('\n'));
               return;
             }
@@ -269,6 +270,7 @@ jobs:
                   approvalCommentId: commandComment.id,
                   approvalUrl: commandComment.html_url,
                   mapStatus: freshness,
+                  mapCoverage,
                   baseBranch: defaultBranch,
                   baseCommit,
                   implementationBranch: branchName,
@@ -310,6 +312,7 @@ jobs:
                   `- **Approved analysis:** ${analysis.html_url}`,
                   `- **Human approval:** ${commandComment.html_url}`,
                   `- **Map status:** ${freshness}`,
+                  `- **Map coverage:** ${mapCoverage}`,
                   `- **Implementation branch:** \`${branchName}\``,
                   '',
                   'This draft pull request was created before implementation so Codex has a real GitHub branch and PR context.',
@@ -367,6 +370,7 @@ jobs:
               `Human approval: ${commandComment.html_url}`,
               `Approved analysis: ${analysis.html_url}`,
               `Approved map status: ${freshness}`,
+              `Approved map coverage: ${mapCoverage}`,
               `Implementation attempt: ${attemptType}`,
               '',
               'Authorization state:',
@@ -417,6 +421,8 @@ jobs:
               '',
               `Pull request: ${pullRequest.html_url}`,
               `Branch: \`${branchName}\``,
+              `Map status: ${freshness}`,
+              `Map coverage: ${mapCoverage}`,
               '',
               createdNow
                 ? 'Codex was requested inside the PR so it can update an existing GitHub branch rather than trying to publish a new PR from an Issue task.'
