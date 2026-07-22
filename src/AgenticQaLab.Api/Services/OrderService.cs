@@ -31,6 +31,11 @@ public sealed class OrderService
             throw new ArgumentOutOfRangeException(nameof(amount), "Amount must be greater than zero.");
         }
 
+        if (amount > 10000m)
+        {
+            throw new ArgumentOutOfRangeException(nameof(amount), "Amount must not exceed 10000.");
+        }
+
         var order = new Order
         {
             Id = Guid.NewGuid(),

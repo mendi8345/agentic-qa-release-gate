@@ -67,6 +67,24 @@ public sealed class OrderServiceTests
     }
 
     [TestMethod]
+    public void Create_WithMaximumAmount_CreatesOrder()
+    {
+        var service = new OrderService();
+
+        var order = service.Create("Rivka", 10000m);
+
+        Assert.AreEqual(10000m, order.Amount);
+    }
+
+    [TestMethod]
+    public void Create_WithAmountAboveMaximum_ThrowsArgumentOutOfRangeException()
+    {
+        var service = new OrderService();
+
+        Assert.ThrowsException<ArgumentOutOfRangeException>(() => service.Create("Rivka", 10000.01m));
+    }
+
+    [TestMethod]
     public void Get_WithUnknownId_ReturnsNull()
     {
         var service = new OrderService();
