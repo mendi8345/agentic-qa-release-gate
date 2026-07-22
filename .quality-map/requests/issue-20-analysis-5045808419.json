@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "issueNumber": 20,
+  "issueUrl": "https://github.com/mendi8345/agentic-qa-release-gate/issues/20",
+  "issueTitle": "Trim whitespace around order status updates",
+  "analysisCommentId": 5045808419,
+  "analysisUrl": "https://github.com/mendi8345/agentic-qa-release-gate/issues/20#issuecomment-5045808419",
+  "approvalCommentId": 5045871390,
+  "approvalUrl": "https://github.com/mendi8345/agentic-qa-release-gate/issues/20#issuecomment-5045871390",
+  "mapStatus": "FRESH FOR THIS TASK",
+  "mapCoverage": "COMPLETE",
+  "baseBranch": "main",
+  "baseCommit": "a73e0a6a339158f3284731d20c0748be0808bdea",
+  "implementationBranch": "quality-map/issue-20-analysis-5045808419",
+  "requestedBy": "mendi8345",
+  "requestedAt": "2026-07-22T12:40:27.002Z"
+}
