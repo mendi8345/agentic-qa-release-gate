@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Http.Json;
+using System.Text.Json;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
@@ -32,6 +33,18 @@ public sealed class OrderStatusApiTests
         response.EnsureSuccessStatusCode();
         var body = await response.Content.ReadFromJsonAsync<OrderResponse>();
         return body!.Id;
+    }
+
+    [TestMethod]
+    public async Task GetHealth_ReturnsExpectedServiceStatus()
+    {
+        var response = await _client.GetAsync("/health");
+
+        Assert.AreEqual(HttpStatusCode.OK, response.StatusCode);
+
+        using var body = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        Assert.AreEqual("ok", body.RootElement.GetProperty("status").GetString());
+        Assert.AreEqual("AgenticQaLab.Api", body.RootElement.GetProperty("service").GetString());
     }
 
     [TestMethod]

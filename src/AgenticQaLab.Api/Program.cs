@@ -7,7 +7,7 @@ builder.Services.AddSingleton<OrderService>();
 
 var app = builder.Build();
 
-app.MapGet("/health", () => Results.Ok(new { status = "ok" }));
+app.MapGet("/health", () => Results.Ok(new { status = "ok", service = "AgenticQaLab.Api" }));
 
 app.MapPost("/orders", (CreateOrderRequest request, OrderService service) =>
 {
