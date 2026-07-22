@@ -68,6 +68,24 @@ public sealed class OrderStatusApiTests
     }
 
     [TestMethod]
+    public async Task CreateOrder_WithMaximumAmount_Returns201()
+    {
+        var response = await _client.PostAsJsonAsync("/orders",
+            new { customerName = "TestCustomer", amount = 10000m });
+
+        Assert.AreEqual(HttpStatusCode.Created, response.StatusCode);
+    }
+
+    [TestMethod]
+    public async Task CreateOrder_WithAmountAboveMaximum_Returns400()
+    {
+        var response = await _client.PostAsJsonAsync("/orders",
+            new { customerName = "TestCustomer", amount = 10000.01m });
+
+        Assert.AreEqual(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
+    [TestMethod]
     public async Task PatchStatus_UnknownStatusString_Returns400()
     {
         var orderId = await CreateOrderAsync();
