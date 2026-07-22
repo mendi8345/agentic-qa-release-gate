@@ -12,6 +12,6 @@
   ],
   "freshnessPolicy": {
     "status": "fresh-at-generation",
-    "rule": "Treat the map as stale when the analyzed repository HEAD differs from generatedFrom.commit. Verify relevant source files before making claims."
+    "rule": "Treat a repository HEAD mismatch as a trigger for verification, not as an automatic stale verdict. The map is stale only when current code contradicts or materially changes a mapped structural claim such as an entry point, responsibility, dependency, flow relationship, or test location. Changes to implementation details inside the same mapped flow do not by themselves make the map stale."
   }
 }
