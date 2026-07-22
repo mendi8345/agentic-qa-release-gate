@@ -36,11 +36,39 @@ Before finishing, report:
 
 For a Quality Map approved implementation task:
 
-- Work only in the existing draft pull request and its current branch.
-- Do not create another branch or another pull request.
-- Do not call `make_pr`.
-- Do not rely on `git push` from a workspace without a configured Git remote.
-- Apply implementation changes through the GitHub pull-request integration available from PR context.
-- Remove the bootstrap handoff file under `.quality-map/requests/` before completion.
-- Successful completion requires the implementation and test changes to be visible in the existing PR and the validation results to be reported there.
-- If the PR branch cannot be updated, report `IMPLEMENTATION DELIVERY FAILED — PR BRANCH UPDATE UNAVAILABLE` with the exact limitation instead of claiming completion.
+1. Work only in the existing draft pull request and the exact target branch named in the task.
+2. Do not create another branch or another pull request.
+3. Do not call `make_pr`.
+4. Before editing, verify Git delivery is available:
+   - Run `git remote -v`.
+   - `origin` must point to `https://github.com/${QUALITY_MAP_REPOSITORY}.git`.
+   - When `origin` is missing but `QUALITY_MAP_REPOSITORY` is available, add it with:
+     `git remote add origin "https://github.com/${QUALITY_MAP_REPOSITORY}.git"`
+   - When `origin` points elsewhere, correct it with:
+     `git remote set-url origin "https://github.com/${QUALITY_MAP_REPOSITORY}.git"`
+   - Run `git ls-remote origin HEAD` and stop immediately if GitHub cannot be reached or authenticated.
+5. Implement only the approved scope, add the required tests, and run all validation commands.
+6. Remove the bootstrap handoff file under `.quality-map/requests/` before completion.
+7. Commit all validated implementation and test changes.
+8. Push the current commit to the exact existing PR branch:
+   `git push origin HEAD:<TARGET_BRANCH>`
+9. Verify delivery after the push:
+   - Record `git rev-parse HEAD` as the local SHA.
+   - Read the remote branch SHA with:
+     `git ls-remote --heads origin refs/heads/<TARGET_BRANCH>`
+   - Successful completion requires the local SHA and remote branch SHA to match.
+   - The implementation files must be visible in the existing PR and the handoff file must be absent.
+10. Never treat a local commit, clean working tree, test result, or task summary as proof that the PR was updated.
+
+If remote verification or push fails, report exactly:
+
+`IMPLEMENTATION DELIVERY FAILED — PR BRANCH UPDATE UNAVAILABLE`
+
+Include:
+
+- `git remote -v`
+- `git rev-parse HEAD`
+- the exact target branch
+- the complete output from `git ls-remote` or `git push`
+
+Do not claim successful delivery when the remote SHA was not verified.
