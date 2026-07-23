@@ -18,34 +18,12 @@ jobs:
     if: github.event_name == 'pull_request_target' || github.event.issue.pull_request
     runs-on: ubuntu-latest
     steps:
-      - name: Request or validate the current-head Quality Map analysis
-        uses: actions/github-script@v7
+      - name: Check out trusted default-branch policy
+        uses: actions/checkout@v4
         with:
-          github-token: ${{ secrets.QUALITY_MAP_USER_TOKEN }}
-          script: |
-            const { owner, repo } = context.repo;
-            const pr = context.eventName === 'pull_request_target'
-              ? context.payload.pull_request
-              : (await github.rest.pulls.get({ owner, repo, pull_number: context.payload.issue.number })).data;
-            if (pr.base.ref !== 'main' || pr.state !== 'open') return;
-            const sha = pr.head.sha;
-            const setStatus = async (state, description) => github.rest.repos.createCommitStatus({ owner, repo, sha, state, context: 'Quality Map Impact', description });
-            await setStatus('pending', 'Waiting for a current-head Quality Map analysis.');
-            const comments = await github.paginate(github.rest.issues.listComments, { owner, repo, issue_number: pr.number, per_page: 100 });
-            const headings = ['## Quality Map Impact', '## Changed Areas', '## Map Update', '## Evidence', '## Risks', '## Recommendation'];
-            const assess = (comment) => {
-              if (comment.user?.login !== 'chatgpt-codex-connector[bot]' || !headings.every((h) => (comment.body ?? '').includes(h))) return null;
-              const lines = Object.fromEntries([...(comment.body ?? '').matchAll(/^([^\n:]+):\s*([^\n]+)\s*$/gm)].map(([, k, v]) => [k.trim(), v.trim()]));
-              const validMap = (lines['Map update'] === 'NO UPDATE REQUIRED' && lines['Map coverage'] === 'NOT REQUIRED') || (lines['Map update'] === 'MAP UPDATE REQUIRED' && lines['Map coverage'] === 'PRESENT AND SUFFICIENT');
-              return lines['PR head SHA'] === sha && lines['Merge gate'] === 'PASS' && validMap;
-            };
-            if (comments.some(assess)) { await setStatus('success', 'Valid Quality Map analysis for this exact head SHA.'); return; }
-            const marker = `quality-map-impact-request pr:${pr.number} sha:${sha}`;
-            if (comments.some((comment) => (comment.body ?? '').includes(marker))) { await setStatus('failure', 'No valid current-head Quality Map response yet.'); return; }
-            await github.rest.issues.createComment({ owner, repo, issue_number: pr.number, body: [
-              `@codex Perform a read-only Quality Map impact analysis for PR #${pr.number}.`, '',
-              `PR head SHA: ${sha}`, 'Do not check out, execute, source, or modify PR code. Use GitHub API reads for the PR metadata, diff, comments, and active map files.',
-              'Reply with all of these headings: `## Quality Map Impact`, `## Changed Areas`, `## Map Update`, `## Evidence`, `## Risks`, and `## Recommendation`.',
-              'Include exactly one plain machine-readable line for each:', `PR head SHA: ${sha}`, 'Map update: <NO UPDATE REQUIRED | MAP UPDATE REQUIRED>', 'Map coverage: <NOT REQUIRED | PRESENT AND SUFFICIENT | MISSING OR INSUFFICIENT>', 'Merge gate: <PASS | BLOCK | UNVERIFIED>.',
-              'Return PASS only when the SHA is exact and any required map update is present and sufficient. <!-- ' + marker + ' -->'
-            ].join('\n') });
+          ref: main
+          persist-credentials: false
+      - name: Request or validate the current-head Quality Map analysis
+        env:
+          GITHUB_TOKEN: ${{ secrets.QUALITY_MAP_USER_TOKEN }}
+        run: node scripts/quality-map-pr-impact.mjs
