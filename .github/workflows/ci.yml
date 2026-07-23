@@ -31,6 +31,16 @@ jobs:
           test "$(grep -Foc "'${setup_sha}'" docs/codex-environment-delivery.md)" -eq 1
           test "$(grep -Foc "'${maintenance_sha}'" docs/codex-environment-delivery.md)" -eq 2
 
+      - name: Validate Quality Map PR policy
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --test scripts/quality-map-pr-policy.test.mjs
+          ruby -e "require 'yaml'; ARGV.each { |f| YAML.load_file(f); puts \"valid YAML: #{f}\" }" .github/workflows/quality-map-pr-impact.yml .github/workflows/quality-map-pr-refresh.yml
+          for file in .quality-map/active/map-manifest.json .quality-map/active/project-map.json .quality-map/active/evidence-index.json; do
+            python3 -m json.tool "$file" >/dev/null
+          done
+
       - name: Set up .NET 8
         uses: actions/setup-dotnet@v4
         with:

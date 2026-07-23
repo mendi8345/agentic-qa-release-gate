@@ -1,0 +1,29 @@
+name: Quality Map Impact
+
+on:
+  pull_request_target:
+    branches: [main]
+    types: [opened, synchronize, reopened, ready_for_review]
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: read
+  issues: write
+  pull-requests: read
+  statuses: write
+
+jobs:
+  impact:
+    if: github.event_name == 'pull_request_target' || github.event.issue.pull_request
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out trusted default-branch policy
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          persist-credentials: false
+      - name: Request or validate the current-head Quality Map analysis
+        env:
+          GITHUB_TOKEN: ${{ secrets.QUALITY_MAP_USER_TOKEN }}
+        run: node scripts/quality-map-pr-impact.mjs

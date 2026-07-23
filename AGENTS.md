@@ -72,3 +72,12 @@ Include:
 - the complete output from `git ls-remote` or `git push`
 
 Do not claim successful delivery when the remote SHA was not verified.
+
+## Quality Map PR impact and refresh policy
+
+- Issue-time `/quality-map analyze` is read-only task navigation; it is separate from PR-time merge protection.
+- Every pull request to the default branch must receive a `Quality Map Impact` result for its exact current head SHA. A stale, malformed, unverified, or non-bot response must never satisfy that gate.
+- Structural workflow, entry-point, responsibility, dependency, flow, or test-location changes require updates to the active map artifacts in the same PR. Implementation-only changes inside an already mapped flow do not require map churn.
+- `/quality-map refresh` is owner-only and may run only for an open, writable, same-repository PR branch. Refreshes may update only the three active map artifacts and must commit, push, and verify remote delivery in that PR.
+- Privileged PR workflows must not check out, source, or execute PR-controlled code; use GitHub API reads instead.
+- A map refresh creates a new head SHA, so an impact analysis for an older SHA cannot pass the refreshed PR head.
