@@ -1,0 +1,33 @@
+name: Quality Map PR Refresh
+
+on:
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: write
+  issues: write
+  pull-requests: write
+
+jobs:
+  request-refresh:
+    if: github.event.issue.pull_request
+    runs-on: ubuntu-latest
+    steps:
+      - name: Authorize and request a safe in-PR map refresh
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.QUALITY_MAP_USER_TOKEN }}
+          script: |
+            const { owner, repo } = context.repo;
+            const command = (context.payload.comment.body ?? '').trim();
+            const author = (context.payload.comment.user?.login ?? '').toLowerCase();
+            if (command !== '/quality-map refresh' || author !== 'mendi8345') return;
+            const pr = (await github.rest.pulls.get({ owner, repo, pull_number: context.payload.issue.number })).data;
+            const safe = pr.state === 'open' && pr.head.repo?.full_name === `${owner}/${repo}` && pr.head.ref && !pr.head.ref.startsWith('refs/') && pr.maintainer_can_modify;
+            if (!safe) { await github.rest.issues.createComment({ owner, repo, issue_number: pr.number, body: '## Quality Map refresh rejected\n\nThe PR must be open, same-repository, and writable before a refresh can be requested.' }); return; }
+            await github.rest.issues.createComment({ owner, repo, issue_number: pr.number, body: [
+              '@codex Refresh the active Quality Map in this existing PR branch only.', '',
+              `Target branch: ${pr.head.ref}`, 'You may change only these files:', '- `.quality-map/active/map-manifest.json`', '- `.quality-map/active/project-map.json`', '- `.quality-map/active/evidence-index.json`', '',
+              'Do not modify application code, workflows, or instructions. Validate JSON, commit the map-only changes, push `HEAD` to the target branch, and verify the local SHA equals `git ls-remote --heads origin refs/heads/' + pr.head.ref + '`. Report delivery failure if verification is unavailable.'
+            ].join('\n') });

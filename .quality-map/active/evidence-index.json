@@ -61,6 +61,36 @@
       "supports": [
         "Independent restore, build, and test validation"
       ]
+    },
+    {
+      "id": "ev-quality-map-pr-impact",
+      "path": ".github/workflows/quality-map-pr-impact.yml",
+      "kind": "pull-request-merge-gate",
+      "supports": [
+        "Exact-head Quality Map status",
+        "Idempotent read-only analysis requests",
+        "Bot-response validation and stale-head blocking"
+      ]
+    },
+    {
+      "id": "ev-quality-map-pr-refresh",
+      "path": ".github/workflows/quality-map-pr-refresh.yml",
+      "kind": "pull-request-command",
+      "supports": [
+        "Owner-only refresh authorization",
+        "Same-repository branch safety",
+        "Map-only refresh delivery instructions"
+      ]
+    },
+    {
+      "id": "ev-quality-map-pr-policy-tests",
+      "path": "scripts/quality-map-pr-policy.test.mjs",
+      "kind": "workflow-policy-tests",
+      "supports": [
+        "Impact parser decision coverage",
+        "Request idempotency coverage",
+        "Refresh authorization coverage"
+      ]
     }
   ]
 }

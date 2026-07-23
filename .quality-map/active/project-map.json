@@ -15,6 +15,31 @@
   ],
   "areas": [
     {
+      "id": "quality-map-pr-automation",
+      "name": "Quality Map pull-request automation",
+      "flow": [
+        "PR lifecycle event or PR comment",
+        "Exact-head Quality Map Impact status",
+        "Idempotent read-only Codex analysis request",
+        "Current-head bot response validation or blocked status",
+        "Owner-only map refresh request for safe same-repository PRs"
+      ],
+      "files": [
+        ".github/workflows/quality-map-pr-impact.yml",
+        ".github/workflows/quality-map-pr-refresh.yml",
+        "scripts/quality-map-pr-policy.mjs"
+      ],
+      "tests": [
+        "scripts/quality-map-pr-policy.test.mjs"
+      ],
+      "knownRisks": [
+        "A stale response must not pass the current PR head.",
+        "Duplicate lifecycle events must not request duplicate analyses for the same head.",
+        "Privileged workflows must not execute pull-request-controlled code.",
+        "Refresh requests must not target forks or unsupported branches."
+      ]
+    },
+    {
       "id": "order-creation",
       "name": "Order creation",
       "flow": [
@@ -67,6 +92,7 @@
     }
   ],
   "qualityGates": [
+    "node --test scripts/quality-map-pr-policy.test.mjs",
     "dotnet restore AgenticQaLab.sln",
     "dotnet build AgenticQaLab.sln --no-restore",
     "dotnet test AgenticQaLab.sln --no-build"
