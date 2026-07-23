@@ -38,7 +38,7 @@ app.MapPatch("/orders/{id:guid}/status", (
     UpdateOrderStatusRequest request,
     OrderService service) =>
 {
-    if (!Enum.TryParse<OrderStatus>(request.Status.Trim(), ignoreCase: true, out var newStatus))
+    if (request.Status is null || !Enum.TryParse<OrderStatus>(request.Status.Trim(), ignoreCase: true, out var newStatus))
     {
         return Results.BadRequest(new { error = "Unknown order status." });
     }
