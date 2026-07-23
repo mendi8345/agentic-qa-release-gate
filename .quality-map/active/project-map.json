@@ -25,8 +25,10 @@
         "Owner-only map refresh request for safe same-repository PRs"
       ],
       "files": [
+        ".github/workflows/ci.yml",
         ".github/workflows/quality-map-pr-impact.yml",
         ".github/workflows/quality-map-pr-refresh.yml",
+        "scripts/quality-map-pr-impact.mjs",
         "scripts/quality-map-pr-policy.mjs"
       ],
       "tests": [
@@ -36,7 +38,8 @@
         "A stale response must not pass the current PR head.",
         "Duplicate lifecycle events must not request duplicate analyses for the same head.",
         "Privileged workflows must not execute pull-request-controlled code.",
-        "Refresh requests must not target forks or unsupported branches."
+        "Refresh requests must not target forks or unsupported branches.",
+        "The impact workflow must run its policy implementation from the trusted default branch."
       ]
     },
     {
@@ -93,6 +96,8 @@
   ],
   "qualityGates": [
     "node --test scripts/quality-map-pr-policy.test.mjs",
+    "Ruby YAML validation for Quality Map PR workflows",
+    "JSON validation for all active map artifacts",
     "dotnet restore AgenticQaLab.sln",
     "dotnet build AgenticQaLab.sln --no-restore",
     "dotnet test AgenticQaLab.sln --no-build"
