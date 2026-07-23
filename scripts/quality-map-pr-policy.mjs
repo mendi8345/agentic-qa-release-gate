@@ -33,7 +33,7 @@ export function latestImpactResponse(comments, currentSha) {
 
 export function hasImpactRequest(comments, prNumber, sha) {
   const marker = `quality-map-impact-request pr:${prNumber} sha:${sha}`;
-  return comments.some((comment) => comment.user?.login === REQUESTER_LOGIN && (comment.body ?? '').includes(marker));
+  return comments.some((comment) => comment.user?.login === REQUESTER_LOGIN && (comment.body ?? '').includes(`<!-- ${marker} -->`));
 }
 
 export function canRefresh({ command, author, state, sameRepository, ref, writable }) {

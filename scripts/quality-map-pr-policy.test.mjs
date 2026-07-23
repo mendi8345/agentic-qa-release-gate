@@ -31,6 +31,7 @@ test('accepts request markers only from the expected automation account and exac
   assert.equal(hasImpactRequest([{ user: { login: 'attacker' }, body: marker }], 7, sha), false);
   assert.equal(hasImpactRequest([{ user: { login: 'mendi8345' }, body: marker }], 7, sha), true);
   assert.equal(hasImpactRequest([{ user: { login: 'mendi8345' }, body: marker }], 7, 'b'.repeat(40)), false);
+  assert.equal(hasImpactRequest([{ user: { login: 'mendi8345' }, body: `<!-- quality-map-impact-request pr:7 sha:${sha}0 -->` }], 7, sha), false);
 });
 test('accepts only the exact safe owner refresh command', () => {
   const valid = { command: '/quality-map refresh', author: 'mendi8345', state: 'open', sameRepository: true, ref: 'feature/map', writable: true };
