@@ -22,6 +22,7 @@ test('rejects missing, duplicate, unknown, contradictory, stale, and untrusted r
     { author: 'chatgpt-codex-connector[bot]', body: 'Analyzed head SHA: ' + sha, currentSha: sha },
     { author: 'chatgpt-codex-connector[bot]', body: response('Map impact: NO UPDATE REQUIRED'), currentSha: sha },
     { author: 'chatgpt-codex-connector[bot]', body: response().replace('Map impact: NO UPDATE REQUIRED', 'Map impact: SOMETHING ELSE'), currentSha: sha },
+    { author: 'chatgpt-codex-connector[bot]', body: response('Map coverage: NOT REQUIRED'), currentSha: sha },
     { author: 'chatgpt-codex-connector[bot]', body: response().replace('Map update state: NOT REQUIRED', 'Map update state: PRESENT AND SUFFICIENT'), currentSha: sha },
     { author: 'chatgpt-codex-connector[bot]', body: response(), currentSha: 'b'.repeat(40) }
   ]) assert.equal(assessImpact(value).pass, false);

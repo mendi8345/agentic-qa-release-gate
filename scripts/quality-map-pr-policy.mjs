@@ -12,6 +12,8 @@ export function assessImpact({ author, body, currentSha }) {
   if (author !== BOT_LOGIN || typeof body !== 'string') return { pass: false, complete: false, reason: 'untrusted author or empty response' };
   if (!headings.every((heading) => body.includes(heading))) return { pass: false, complete: false, reason: 'missing required heading' };
   const matches = [...body.matchAll(/^(Analyzed head SHA|Map impact|Map update state|Merge gate):\s*([^\n]+)\s*$/gm)];
+  const unknownResult = /^(PR head SHA|Map update|Map coverage):/m.test(body);
+  if (unknownResult) return { pass: false, complete: false, reason: 'unknown machine-readable result' };
   const counts = Object.fromEntries(requiredLines.map((line) => [line, matches.filter(([, key]) => key === line).length]));
   if (requiredLines.some((line) => counts[line] !== 1)) return { pass: false, complete: false, reason: 'missing or duplicate machine-readable result' };
   const lines = Object.fromEntries(matches.map(([, key, value]) => [key, value.trim()]));
