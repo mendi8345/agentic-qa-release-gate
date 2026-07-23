@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
+using AgenticQaLab.Api.Models;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
@@ -55,7 +56,7 @@ public sealed class OrderStatusApiTests
         // Created → Shipped is not allowed
         var response = await _client.PatchAsJsonAsync(
             $"/orders/{orderId}/status",
-            new { status = "Shipped" });
+            new { status = " Shipped " });
 
         Assert.AreEqual(HttpStatusCode.BadRequest, response.StatusCode);
     }
@@ -111,6 +112,21 @@ public sealed class OrderStatusApiTests
     }
 
     [TestMethod]
+    public async Task PatchStatus_PaddedUnknownStatusString_Returns400WithExistingError()
+    {
+        var orderId = await CreateOrderAsync();
+
+        var response = await _client.PatchAsJsonAsync(
+            $"/orders/{orderId}/status",
+            new { status = " Cancelled " });
+
+        Assert.AreEqual(HttpStatusCode.BadRequest, response.StatusCode);
+
+        using var body = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        Assert.AreEqual("Unknown order status.", body.RootElement.GetProperty("error").GetString());
+    }
+
+    [TestMethod]
     public async Task PatchStatus_MissingOrder_Returns404()
     {
         var response = await _client.PatchAsJsonAsync(
@@ -133,6 +149,21 @@ public sealed class OrderStatusApiTests
     }
 
     [TestMethod]
+    public async Task PatchStatus_PaddedValidTransition_CreatedToPaid_ReturnsPaidOrder()
+    {
+        var orderId = await CreateOrderAsync();
+
+        var response = await _client.PatchAsJsonAsync(
+            $"/orders/{orderId}/status",
+            new { status = " Paid " });
+
+        Assert.AreEqual(HttpStatusCode.OK, response.StatusCode);
+        var body = await response.Content.ReadFromJsonAsync<OrderResponse>();
+        Assert.IsNotNull(body);
+        Assert.AreEqual(OrderStatus.Paid, body.Status);
+    }
+
+    [TestMethod]
     public async Task PatchStatus_ValidTransition_PaidToShipped_Returns200()
     {
         var orderId = await CreateOrderAsync();
@@ -146,5 +177,5 @@ public sealed class OrderStatusApiTests
         Assert.AreEqual(HttpStatusCode.OK, response.StatusCode);
     }
 
-    private sealed record OrderResponse(Guid Id);
+    private sealed record OrderResponse(Guid Id, OrderStatus Status);
 }
